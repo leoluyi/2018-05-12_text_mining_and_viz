@@ -4,15 +4,15 @@ slidenumbers: true
 
 # Text Mining and Data Viz
 
-### 2018-05-12<br/>[leoluyi](https://github.com/leoluyi/)@iii
+### 2018-05-12<br/>[leoluyi](https://leoluyi.github.io)@iii
 
-### [`https://goo.gl/uLgwSe`](#)
+### Slides [_`http://pcse.pw/6WHWJ`_](http://pcse.pw/6WHWJ)
 
 ---
 
 ## 關於我
 
-- 呂奕 [Leo Lu](https://github.com/leoluyi)
+- 呂奕 [Leo Lu](https://leoluyi.github.io)
 - 台大工管
 - 目前於金融業服務
 - Build data products
@@ -86,6 +86,8 @@ slidenumbers: true
 
 # Get data
 
+[.footer: _Get data_ ➜ Tokenize ➜ Embedding ➜ Viz ➜ Model]
+
 ---
 
 ![right](img/red.jpg)
@@ -94,9 +96,11 @@ slidenumbers: true
 
 ## Transform whole text into parts (of distributions)
 
+[.footer: Get data ➜ _Tokenize_ ➜ Embedding ➜ Viz ➜ Model]
+
 ---
 
-![right fit filtered](img/work.png)
+![right fit filtered original 150%](img/work.png)
 
 ## For English
 
@@ -106,9 +110,11 @@ slidenumbers: true
 - POS tagging
 - ...
 
+[.footer: Get data ➜ _Tokenize_ ➜ Embedding ➜ Viz ➜ Model]
+
 ---
 
-![right fit filtered](img/work.png)
+![right fit filtered original 150%](img/work.png)
 
 ## 中文似乎比較簡單
 
@@ -117,19 +123,25 @@ slidenumbers: true
 - POS tagging
 - ...
 
+[.footer: Get data ➜ _Tokenize_ ➜ Embedding ➜ Viz ➜ Model]
+
 ---
 
-![right fit](img/work.png)
+![right fit original 150%](img/work.png)
 
 ## R tools
 
 - `stringr`
 - `jiebaR`
 
+[.footer: Get data ➜ _Tokenize_ ➜ Embedding ➜ Viz ➜ Model]
+
 ---
 
 # Embedding
 ## (Encode, Feature Extraction)
+
+[.footer: Get data ➜ Tokenize ➜ _Embedding_ ➜ Viz ➜ Model]
 
 ---
 
@@ -145,21 +157,25 @@ slidenumbers: true
 
 [^1]: https://machinelearningmastery.com/what-are-word-embeddings/
 
+[.footer: Get data ➜ Tokenize ➜ _Embedding_ ➜ Viz ➜ Model]
+
 ---
 
 ![fit](img/Word2Vec-Training-Models.png)
 
 ---
 
-![right fit](img/find.png)
+![right fit original 150%](img/find.png)
 
 ## Demo
 
 ### Information Retrieval
 
+[.footer: Get data ➜ Tokenize ➜ _Embedding_ ➜ Viz ➜ Model]
+
 ---
 
-![right fit filtered](img/work.png)
+![right fit filtered original 150%](img/work.png)
 
 # Visualize
 
@@ -169,23 +185,28 @@ slidenumbers: true
 - Clustering
 - Interactive or static plots
 
+[.footer: Get data ➜ Tokenize ➜ Embedding ➜ _Viz_ ➜ Model]
+
 ---
 
-![right fit](img/work.png)
+![right original 150%](img/work.png)
 
 # Visualize
 
 - `tsne::tsne()`
 - `prcomp()`
 
+[.footer: Get data ➜ Tokenize ➜ Embedding ➜ _Viz_ ➜ Model]
 
 ---
 
 # Model
 
+[.footer: Get data ➜ Tokenize ➜ Embedding ➜ Viz ➜ _Model_]
+
 ---
 
-![right fit](img/work.png)
+![right fit original 150%](img/work.png)
 
 ## Tasks
 
@@ -195,6 +216,8 @@ slidenumbers: true
     - 找尋相似文本
 - Generative models
     - 文本自動生成
+
+[.footer: Get data ➜ Tokenize ➜ Embedding ➜ Viz ➜ _Model_]
 
 ---
 
@@ -206,5 +229,10 @@ slidenumbers: true
 
 ---
 
-# 謝謝
+![original 70% left](img/line-QR.jpg)
+
+# _數據科學_
+
+### 呂奕 leoluyi@github
+#### https://leoluyi.github.io
 
