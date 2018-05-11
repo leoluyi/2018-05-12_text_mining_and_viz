@@ -1,0 +1,366 @@
+---
+title: "Text Mining with R"
+author: Leo Lu (https://leoluyi.github.io/)
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    highlight: kate
+    theme: cosmo
+    toc: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+	echo = TRUE,
+	warning = FALSE,
+	comment = "#>"
+)
+```
+
+```{r load packages}
+# Load Packages
+suppressPackageStartupMessages({
+  library(DBI)
+  library(data.table); options(datatable.print.class = TRUE)
+  library(RSQLite)
+  # library(tidytext)
+  library(tokenizers)
+  library(text2vec)
+  library(ggplot2)
+  library(plotly)
+  library(jiebaR)
+  library(stringr)
+  # devtools::install_github("bmschmidt/wordVectors")
+  library(wordVectors)
+  library(wordcloud2)
+  # library(tsne)
+  library(dbscan)
+  library(factoextra)
+})
+
+source("R/utils.R", encoding = "UTF-8")
+source("R/filter_dtm.R", encoding = "UTF-8")
+```
+
+## Load data
+
+```{r}
+con <- dbConnect(RSQLite::SQLite(), "./dataset/db.sqlite")
+dt <- dbReadTable(con, "Gossiping") %>% setDT
+dbDisconnect(con)
+```
+
+
+## Data cleansing
+
+```{r}
+# dt[sample(seq(.N), 5)] %>% View  # take a look
+
+# Remove reply text and messages
+dt[title %>% str_detect("^Re:"),
+    `:=`(post_text = post_text %>% 
+           str_replace_all('(?m)^(:|※).*$', "") %>% 
+           str_replace_all('(?im)(posted|sent) from.*$', ""))]
+
+# Remove URLs
+url_regex = 'http[s]?://(?:[a-zA-Z0-9$-_@.&+!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+(?:#[-A-z0-9]+)?'
+dt[, `:=`(post_text = post_text %>% str_replace_all(url_regex, ""),
+          push_text = push_text %>% str_replace_all(url_regex, ""))]
+
+
+# Remove all but Eng and Zht
+dt[, `:=`(post_text = post_text %>%
+            str_replace_all("[^\u4e00-\u9fa5A-Za-z\\d\\n\\s]+", " "),
+          push_text = push_text %>%
+            str_replace_all("[^\u4e00-\u9fa5A-Za-z\\d\\n\\s]+", " "))]
+
+# Filter
+dt <- dt[! (str_detect(title, "置底|公告") | str_detect(post_text, "置底|公告"))]
+
+dt[sample(seq(.N), 5)] %>% View  # take a look again
+```
+
+## Tokenization
+
+```{r}
+# 起手式，結巴建立斷詞器
+mix_seg <- worker(type = "mix",
+                  dict = "dict/jieba_dict_utf8.txt",
+                  stop_word = "dict/stop_utf8.txt",
+                  symbol = FALSE,
+                  encoding = "UTF-8")
+
+# tokenize
+text_seg <- dt[, paste(post_text, push_text)] %>% lapply(cutter, mix_seg)
+segment("中華電信499吃到飽之亂引爆戰火", mix_seg)
+```
+
+
+## New-term detection
+
+### Play with n-grams
+
+```{r}
+x <- "中華電信499吃到飽之亂引爆戰火"
+tokenize_character_shingles(x, n = 4, n_min = 1, simplify = TRUE)
+```
+
+Try PTT
+
+```{r eval=FALSE, include=TRUE}
+word_count_table <- dt[, paste(post_text, push_text)] %>% 
+  str_split("[\n\\s]+") %>% 
+  unlist %>% 
+  tokenize_character_shingles(n = 4, n_min = 1) %>%
+  unlist %>% 
+  table
+dt_wc <- word_count_table %>% as.data.table %>% setnames(c("word", "N"))
+dt_wc
+
+dt_wc[, ngram := str_length(word)]
+dt_wc[, p := N / sum(N), by = .(ngram)]
+
+# bi-gram PMI
+bi_wc <- copy(dt_wc[ngram == 2])
+bi_wc[, `:=`(w1 = str_sub(word, 1, -2), 
+             w2 = str_sub(word, -1, -1))]
+bi_wc <- bi_wc %>% 
+  merge(dt_wc[, .(word, p1 = p)], by.x = "w1", by.y = "word", all.x = TRUE) %>%
+  merge(dt_wc[, .(word, p2 = p)], by.x = "w2", by.y = "word", all.x = TRUE) %>% 
+  .[, pmi := log((p^1) / (p1 * p2))]
+(bi_wc_final <- bi_wc[(pmi > 6 & N > 10) | N * pmi > 600] %>% 
+    .[! word %>% str_detect("\\d")] %>% 
+    .[order(-N, -pmi)])
+
+
+# tri-gram PMI
+tri_wc <- copy(dt_wc[ngram == 3])
+tri_wc_right <- tri_wc[, `:=`(w1 = str_sub(word, 1, -2), 
+                              w2 = str_sub(word, -1, -1))] %>% copy
+tri_wc_left <- tri_wc[, `:=`(w1 = str_sub(word, 1, 1), 
+                             w2 = str_sub(word, 2, -1))] %>% copy
+tri_wc_right <- tri_wc_right %>% 
+  merge(dt_wc[, .(word, p1 = p)], by.x = "w1", by.y = "word", all.x = TRUE) %>% 
+  merge(dt_wc[, .(word, p2 = p)], by.x = "w2", by.y = "word", all.x = TRUE) %>% 
+  .[, pmi := log((p^1) / (p1 * p2))]
+tri_wc_left <- tri_wc_left %>% 
+  merge(dt_wc[, .(word, p1 = p)], by.x = "w1", by.y = "word", all.x = TRUE) %>% 
+  merge(dt_wc[, .(word, p2 = p)], by.x = "w2", by.y = "word", all.x = TRUE) %>% 
+  .[, pmi := log((p^1) / (p1 * p2))]
+
+(tri_wc_final <- tri_wc_right[(pmi > 10 & N > 20) | N * pmi > 1200][order(-pmi)] %>% 
+  rbind(tri_wc_left[(pmi > 10 & N > 20) | N * pmi > 1200][order(-pmi)]) %>% 
+    unique(by = "word") %>% 
+    .[! word %>% str_detect("\\d")])
+
+# four-gram PMI
+four_wc <- copy(dt_wc[ngram == 4])
+
+four_wc_right <- four_wc[, `:=`(w1 = str_sub(word, 1, -2), 
+                              w2 = str_sub(word, -1, -1))] %>% 
+  copy %>% 
+  merge(dt_wc[, .(word, p1 = p)], by.x = "w1", by.y = "word", all.x = TRUE) %>% 
+  merge(dt_wc[, .(word, p2 = p)], by.x = "w2", by.y = "word", all.x = TRUE) %>% 
+  .[, pmi := log((p^1) / (p1 * p2))]
+four_wc_left <- four_wc[, `:=`(w1 = str_sub(word, 1, 1), 
+                             w2 = str_sub(word, 2, -1))] %>% 
+  copy %>% 
+  merge(dt_wc[, .(word, p1 = p)], by.x = "w1", by.y = "word", all.x = TRUE) %>% 
+  merge(dt_wc[, .(word, p2 = p)], by.x = "w2", by.y = "word", all.x = TRUE) %>% 
+  .[, pmi := log((p^1) / (p1 * p2))]
+
+(four_wc_final <- four_wc_right[(pmi > 8 & N > 20) | N * pmi > 1600][order(-pmi)] %>% 
+  rbind(four_wc_left[(pmi > 8 & N > 20) | N * pmi > 1600][order(-pmi)]) %>% 
+    unique(by = "word") %>% 
+    .[! word %>% str_detect("\\d")])
+```
+
+```{r echo=FALSE}
+# bi_wc_final %>%
+#   saveRDS(file = "dict/bi_wc_final.Rds")
+# tri_wc_final %>%
+#   saveRDS(file = "dict/tri_wc_final.Rds")
+# four_wc_final %>%
+#   saveRDS(file = "dict/four_wc_final.Rds")
+
+(bi_wc_final <- readRDS(file = "dict/bi_wc_final.Rds"))
+(tri_wc_final <- readRDS(file = "dict/tri_wc_final.Rds"))
+(four_wc_final <- readRDS(file = "dict/four_wc_final.Rds"))
+```
+
+### Add new terms into user dictionary
+
+```{r}
+bi_wc_final[, .(word, N)] %>%
+  write.table("dict/user_dict_utf8.txt", quote = FALSE,
+              append = FALSE,
+              sep = " ",
+              row.names = FALSE, col.names = FALSE)
+tri_wc_final[, .(word, N)] %>%
+  write.table("dict/user_dict_utf8.txt", quote = FALSE,
+              append = TRUE,
+              sep = " ",
+              row.names = FALSE, col.names = FALSE)
+four_wc_final[, .(word, N)] %>%
+  write.table("dict/user_dict_utf8.txt", quote = FALSE,
+              append = TRUE,
+              sep = " ",
+              row.names = FALSE, col.names = FALSE)
+
+mix_seg <- worker(type = "mix",
+                  dict = "dict/jieba_dict_utf8.txt",
+                  stop_word = "dict/stop_utf8.txt",
+                  user = "dict/user_dict_utf8.txt",
+                  symbol = FALSE,
+                  encoding = "UTF-8")
+
+# tokenize
+text_seg <- dt[, paste(post_text, push_text)] %>% lapply(cutter, mix_seg)
+segment("中華電信499吃到飽之亂引爆戰火", mix_seg)
+```
+
+
+## Word Embedding
+
+### Word Count
+
+```{r}
+# text2vec
+text_token <- itoken(text_seg)
+vocab <- create_vocabulary(
+  text_token, 
+  ngram=c(1L, 2L),
+  sep_ngram = "_"
+)
+
+pruned_vocab <- prune_vocabulary(
+  vocab, 
+  term_count_min = 10, 
+  doc_proportion_min = 0.001, 
+  doc_proportion_max = 0.9,
+  vocab_term_max = 20000
+)
+# class(pruned_vocab) <- c("text2vec_vocabulary", "data.table", "data.frame")
+pruned_vocab <- pruned_vocab[str_length(pruned_vocab$term) >= 2,] # remove 1-word term
+
+# Make DTM
+vectorizer <- vocab_vectorizer(pruned_vocab)
+dtm <- create_dtm(text_token, vectorizer)
+
+# Check most freq terms
+Matrix::colSums(dtm) %>% sort(decreasing = T) %>% head(20)
+```
+
+### word2vec
+
+wordVectors
+
+```{r eval=FALSE, include=TRUE}
+# Prepare tokenizes text file
+tokenize_text_lines <- text_seg %>%
+  sapply(paste, collapse = " ")  # Tokens are split on spaces.
+tokenize_text_lines %>% writeLines("dataset/tokenize_text_lines.txt")
+
+# Fit models
+vector_set <- train_word2vec(train_file = "dataset/tokenize_text_lines.txt",
+                          output_file = "dataset/ptt_gossiping_word2vec.bin",
+                          force = TRUE,
+                          vectors = 200,
+                          threads = parallel::detectCores()-1,
+                          window = 6)
+
+vector_set <- vector_set[-1,]
+```
+
+```{r include=FALSE}
+vector_set <- read.vectors("dataset/ptt_gossiping_word2vec.bin")
+vector_set <- vector_set[-1,]
+```
+
+相近關聯詞
+
+```{r}
+nearest_to(vector_set, vector_set[["柯文哲"]], n = 20)
+```
+
+```{r}
+nearest_to(vector_set, vector_set[["499"]], n = 20)
+```
+
+```{r}
+nearest_to(vector_set, vector_set[["台灣價值"]], n = 20)
+```
+
+### Visualisation: Clustering
+
+Dimension reduction with t-SNE
+
+```{r}
+# tsne_vec <- tsne(vector_set, k = 2, epoch = 10)
+fit_pca <- prcomp(vector_set, scale = FALSE)
+fviz_eig(fit_pca)
+
+dt_pca <- fit_pca$x %>% as.data.table(keep.rownames = FALSE)
+dt_pca[, word := rownames(fit_pca$x)]
+db <- dbscan(dt_pca[, .(PC1, PC2, PC3, PC4, PC5)], eps = .4, minPts = 4)
+
+dt_pca_2 <- dt_pca[, .(word, PC1, PC2, cluster = db$cluster)]
+```
+
+Plotly
+
+```{r}
+p <- plot_ly(
+  data = dt_pca_2, x = ~PC1, y = ~PC2, 
+  # color = ~cluster,
+  # Hover text:
+  text = ~paste(word)
+)
+p
+```
+
+
+
+## Keyword Extraction
+
+```{r}
+# 利用 tf-idf 關鍵詞算法，處理高頻詞高估及低頻詞低估的問題，取得整個文檔的關鍵詞
+
+# tf-idf
+tfidf = TfIdf$new() # define tfidf model
+# fit model to train data and transform train data with fitted model
+dtm_train_tfidf = fit_transform(dtm, tfidf)
+# tfidf modified by fit_transform() call!
+
+# Key term
+key_term <- dtm_train_tfidf %>% 
+  find_freq_terms(lowfreq = 0.05) %>% 
+  Matrix::colSums(.) %>% 
+  data.frame() %>% 
+  data.table(keep.rownames = TRUE) %>% 
+  setnames(c("keyword", "sum_tf_idf")) %>% 
+  .[order(-sum_tf_idf)]
+# key_term %>% head(100) %>% DT::datatable(extensions = "Responsive")
+
+# Wordcloud
+d <- key_term %>% head(200)
+ncolor <- nrow(d)
+getPalette = colorRampPalette(RColorBrewer::brewer.pal(8, "Set2"))
+wordcloud2(d,
+           size = 0.5,
+           fontFamily = "Noto Sans CJK TC", 
+           fontWeight = "normal",
+           rotateRatio = 0,
+           color = getPalette(ncolor),
+shape = "circle")
+```
+
+
+
+## References
+
+- [text2vect vignette](https://cran.r-project.org/web/packages/text2vec/vignettes/text-vectorization.html)
+- [Text Mining with R - Julia Silge and David Robinson](https://www.tidytextmining.com/)
