@@ -64,6 +64,12 @@ slidenumbers: true
 
 ---
 
+# Get data
+
+[.footer: _Get data_ ➜ Tokenize ➜ Embedding ➜ Viz ➜ Model]
+
+---
+
 ![fit right](img/ptt-cover.jpg)
 
 ## *PTT* 是宅宅的好朋友
@@ -84,17 +90,16 @@ slidenumbers: true
 
 ---
 
-# Get data
+## Cleaning and preprocessing text
 
-[.footer: _Get data_ ➜ Tokenize ➜ Embedding ➜ Viz ➜ Model]
+### 留下資訊，去掉雜訊
 
 ---
-
 ![right](img/red.jpg)
 
 # Tokenize
 
-## Transform whole text into parts (of distributions)
+## Transform whole text into parts
 
 [.footer: Get data ➜ _Tokenize_ ➜ Embedding ➜ Viz ➜ Model]
 
@@ -124,6 +129,12 @@ slidenumbers: true
 - ...
 
 [.footer: Get data ➜ _Tokenize_ ➜ Embedding ➜ Viz ➜ Model]
+
+---
+
+## Semantic Parsing vs. Bag-of-Words
+
+![inline](img/bow_vs_postag.png)
 
 ---
 
@@ -226,6 +237,25 @@ slidenumbers: true
 - Sparse Matrix manipulation
 - Informaiton retrieval tools
 - ...
+
+---
+
+![original 70% left](img/line-QR.jpg)
+
+## Summary
+
+1. Problem definition & specific goal: Get Curious About Text
+2. Finding Your Data
+3. Preprocessing Your Data
+    - Removing stopwords, Stemming, Segmentation, ...
+4. Feature Extraction
+    - Document-Term Matrix: `tm`, `text2vec`
+    - Named Entity Recognition, POS tagging
+    - Word embeddings: word2vec, GloVe
+5. More Text Mining Skills
+    - sentiment analysis
+    - `topicmodels`, `LDAViz`: LDA
+6. More Than Words - Visualizing Your Results
 
 ---
 
