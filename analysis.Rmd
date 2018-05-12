@@ -23,6 +23,7 @@ knitr::opts_chunk$set(
 ```{r load packages}
 # Load Packages
 suppressPackageStartupMessages({
+  library(magrittr)
   library(DBI)
   library(data.table); options(datatable.print.class = TRUE)
   library(RSQLite)
